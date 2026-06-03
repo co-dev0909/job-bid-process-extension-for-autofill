@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Resume Builder Job Autofill",
+  "version": "1.0.0",
+  "description": "Queues job links, extracts job details, and submits them into the Resume Builder Add Job form.",
+  "permissions": ["storage", "tabs", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Job Autofill",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["job-content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["app-content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
