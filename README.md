@@ -1,13 +1,12 @@
 # Job Autofill Extension
 
-This Chrome extension lets you paste a list of job links, then automatically:
+This Chrome extension lets you paste either job links or exported job application JSON, then automatically:
 
-1. open each job page
-2. extract `job link`, `job title`, `company`, and `job description`
-3. open your Resume Builder `Add Job` page
-4. fill the form
-5. click `Save`
-6. repeat for the next link
+1. open each job page and extract data, or use the provided JSON data directly
+2. open your Resume Builder `Add Job` page
+3. fill the form
+4. click `Save`
+5. repeat for the next item
 
 ## What it works with
 
@@ -42,8 +41,20 @@ job-autofill-extension
    - local: `http://localhost:3000/user/jobs`
    - deployed: `https://your-frontend.vercel.app/user/jobs`
 5. Optional: enter the exact profile name you want selected.
-6. Paste job links, one per line.
-7. Click `Start`.
+6. Choose `Input type`.
+7. For `Job links`, paste one job link per line.
+8. For `Job applications JSON`, paste the exported JSON from the Applications page. Each item should include:
+
+```json
+{
+  "job_link": "https://example.com/job",
+  "job_title": "Frontend Engineer",
+  "company": "Example",
+  "job_description": "Job details..."
+}
+```
+
+9. Click `Start`.
 
 ## Notes
 
@@ -56,5 +67,5 @@ job-autofill-extension
 
 1. Keep one browser profile dedicated to this app.
 2. Stay logged into the app.
-3. Test with 2 or 3 job links first.
+3. Test with 2 or 3 items first.
 4. Then run larger batches.

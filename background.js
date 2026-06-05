@@ -6,6 +6,7 @@ const DEFAULT_STATE = {
   results: [],
   appUrl: DEFAULT_APP_URL,
   profileName: "",
+  inputMode: "job-links",
   updatedAt: null,
 };
 
@@ -46,12 +47,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 async function handleStart(message) {
-  const queue = (message.urls || [])
-    .map((url) => String(url || "").trim())
-    .filter(Boolean);
+  const inputMode = normalizeInputMode(message.inputMode);
+  const queue = buildQueue(message.inputText, inputMode);
 
   if (!queue.length) {
-    throw new Error("Please provide at least one job link.");
+    throw new Error(
+      inputMode === "job-applications"
+        ? "Please provide at least one job application JSON item."
+        : "Please provide at least one job link."
+    );
   }
 
   const appUrl = normalizeAppUrl(message.appUrl || DEFAULT_APP_URL);
@@ -64,6 +68,7 @@ async function handleStart(message) {
     results: [],
     appUrl,
     profileName,
+    inputMode,
     updatedAt: new Date().toISOString(),
   });
 
@@ -96,7 +101,8 @@ async function processQueue() {
         break;
       }
 
-      const jobUrl = state.queue[state.currentIndex];
+      const queueItem = state.queue[state.currentIndex];
+      const jobUrl = queueItem?.url || "";
       let resultRecord = {
         url: jobUrl,
         status: "success",
@@ -105,39 +111,25 @@ async function processQueue() {
 
       try {
         const appTab = await ensureAppTab(state.appUrl);
-        const jobTab = await createTab(jobUrl, false);
+        const jobData = queueItem?.jobData
+          ? queueItem.jobData
+          : await scrapeJobDataFromLink(jobUrl);
 
-        try {
-          await waitForTabComplete(jobTab.id);
-          await sleep(1200);
+        await navigateTab(appTab.id, state.appUrl);
+        await waitForTabComplete(appTab.id);
+        await sleep(800);
 
-          const scrapeResponse = await sendMessageToTab(jobTab.id, {
-            type: "SCRAPE_JOB_DETAILS",
-            jobUrl,
-          });
+        const fillResponse = await sendMessageToTab(appTab.id, {
+          type: "FILL_ADD_JOB_FORM",
+          profileName: state.profileName,
+          jobData,
+        });
 
-          if (!scrapeResponse?.success) {
-            throw new Error(scrapeResponse?.error || "Failed to scrape job page.");
-          }
-
-          await navigateTab(appTab.id, state.appUrl);
-          await waitForTabComplete(appTab.id);
-          await sleep(800);
-
-          const fillResponse = await sendMessageToTab(appTab.id, {
-            type: "FILL_ADD_JOB_FORM",
-            profileName: state.profileName,
-            jobData: scrapeResponse.data,
-          });
-
-          if (!fillResponse?.success) {
-            throw new Error(fillResponse?.error || "Failed to fill Add Job form.");
-          }
-
-          await waitForTabUrlToLeavePrefix(appTab.id, state.appUrl, 7000);
-        } finally {
-          await closeTab(jobTab.id);
+        if (!fillResponse?.success) {
+          throw new Error(fillResponse?.error || "Failed to fill Add Job form.");
         }
+
+        await waitForTabUrlToLeavePrefix(appTab.id, state.appUrl, 7000);
       } catch (error) {
         resultRecord = {
           url: jobUrl,
@@ -167,9 +159,66 @@ function normalizeAppUrl(url) {
     : `${trimmed.replace(/\/$/, "")}/user/jobs`;
 }
 
+function normalizeInputMode(value) {
+  return value === "job-applications" ? "job-applications" : "job-links";
+}
+
+function buildQueue(inputText, inputMode) {
+  if (inputMode === "job-applications") {
+    return buildApplicationQueue(inputText);
+  }
+
+  return String(inputText || "")
+    .split(/\r?\n/)
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .map((url) => ({
+      url,
+      jobData: null,
+    }));
+}
+
+function buildApplicationQueue(inputText) {
+  let parsed;
+
+  try {
+    parsed = JSON.parse(String(inputText || "").trim() || "[]");
+  } catch (_error) {
+    throw new Error("Job applications input must be valid JSON.");
+  }
+
+  const items = Array.isArray(parsed) ? parsed : [parsed];
+
+  return items.map((item, index) => {
+    const jobUrl = String(item?.job_link || "").trim();
+    const jobTitle = String(item?.job_title || "").trim();
+    const companyName = String(item?.company || "").trim();
+    const jobDescription = String(item?.job_description || "").trim();
+
+    if (!jobUrl || !jobTitle || !companyName || !jobDescription) {
+      throw new Error(
+        `Job application item ${index + 1} must include job_link, job_title, company, and job_description.`
+      );
+    }
+
+    return {
+      url: jobUrl,
+      jobData: {
+        jobLink: jobUrl,
+        jobTitle,
+        companyName,
+        jobDescription,
+      },
+    };
+  });
+}
+
 async function getState() {
   const stored = await chrome.storage.local.get("autofillState");
-  return stored.autofillState || { ...DEFAULT_STATE };
+  return {
+    ...DEFAULT_STATE,
+    ...(stored.autofillState || {}),
+  };
 }
 
 async function setState(state) {
@@ -202,6 +251,28 @@ async function navigateTab(tabId, url) {
   const tab = await chrome.tabs.get(tabId);
   if (tab.url && tab.url.startsWith(url)) return tab;
   return chrome.tabs.update(tabId, { url, active: false });
+}
+
+async function scrapeJobDataFromLink(jobUrl) {
+  const jobTab = await createTab(jobUrl, false);
+
+  try {
+    await waitForTabComplete(jobTab.id);
+    await sleep(1200);
+
+    const scrapeResponse = await sendMessageToTab(jobTab.id, {
+      type: "SCRAPE_JOB_DETAILS",
+      jobUrl,
+    });
+
+    if (!scrapeResponse?.success) {
+      throw new Error(scrapeResponse?.error || "Failed to scrape job page.");
+    }
+
+    return scrapeResponse.data;
+  } finally {
+    await closeTab(jobTab.id);
+  }
 }
 
 async function waitForTabComplete(tabId, timeoutMs = 30000) {

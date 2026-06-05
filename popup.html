@@ -29,6 +29,7 @@
       }
 
       input,
+      select,
       textarea {
         width: 100%;
         box-sizing: border-box;
@@ -108,8 +109,14 @@
       <label for="profileName">Profile name (optional)</label>
       <input id="profileName" type="text" placeholder="Exact profile name from the dropdown" />
 
-      <label for="jobUrls">Job links</label>
-      <textarea id="jobUrls" placeholder="One job link per line"></textarea>
+      <label for="inputMode">Input type</label>
+      <select id="inputMode">
+        <option value="job-links">Job links</option>
+        <option value="job-applications">Job applications JSON</option>
+      </select>
+
+      <label for="jobInput" id="jobInputLabel">Job links</label>
+      <textarea id="jobInput" placeholder="One job link per line"></textarea>
 
       <div class="row">
         <button id="startBtn" class="primary">Start</button>
