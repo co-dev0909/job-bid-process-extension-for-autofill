@@ -1,4 +1,5 @@
 const DEFAULT_APP_URL = "http://localhost:3000/user/jobs";
+const NEXT_APPLICATION_DELAY_MS = 3000;
 const DEFAULT_STATE = {
   running: false,
   queue: [],
@@ -130,6 +131,7 @@ async function processQueue() {
         }
 
         await waitForTabUrlToLeavePrefix(appTab.id, state.appUrl, 7000);
+        await sleep(NEXT_APPLICATION_DELAY_MS);
       } catch (error) {
         resultRecord = {
           url: jobUrl,
