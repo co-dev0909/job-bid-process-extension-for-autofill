@@ -16,7 +16,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 async function fillAddJobForm(jobData, profileName) {
-  if (!window.location.pathname.startsWith("/user/jobs")) {
+  if (!window.location.pathname.startsWith("/user/jobs")) { 
     throw new Error("Add Job page is not open.");
   }
 
